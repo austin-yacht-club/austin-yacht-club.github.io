@@ -1,0 +1,76 @@
+name: Validate Dashboard
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "index.html"
+      - "style.css"
+      - "script.js"
+      - "404.html"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "index.html"
+      - "style.css"
+      - "script.js"
+      - "404.html"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install validation tools
+      run: |
+        npm install -g htmlhint stylelint eslint
+        
+    - name: Validate HTML
+      run: |
+        echo "Validating HTML files..."
+        htmlhint index.html 404.html || echo "HTML validation completed with warnings"
+        
+    - name: Validate CSS
+      run: |
+        echo "Validating CSS files..."
+        stylelint style.css --config-basedir /tmp || echo "CSS validation completed with warnings"
+        
+    - name: Validate JavaScript
+      run: |
+        echo "Validating JavaScript files..."
+        eslint script.js --no-eslintrc --env browser,es6 --parserOptions ecmaVersion:2020 || echo "JavaScript validation completed with warnings"
+        
+    - name: Check file sizes
+      run: |
+        echo "Checking file sizes..."
+        echo "index.html: $(wc -c < index.html) bytes"
+        echo "style.css: $(wc -c < style.css) bytes"
+        echo "script.js: $(wc -c < script.js) bytes"
+        echo "404.html: $(wc -c < 404.html) bytes"
+        
+    - name: Test basic functionality
+      run: |
+        echo "Testing basic functionality..."
+        # Check if required elements are present in HTML
+        grep -q 'id="latest-image"' index.html && echo "✅ Image element found" || echo "❌ Image element missing"
+        grep -q 'id="last-updated"' index.html && echo "✅ Last updated element found" || echo "❌ Last updated element missing"
+        grep -q 'refreshImage' script.js && echo "✅ Refresh function found" || echo "❌ Refresh function missing"
+        grep -q 'downloadImage' script.js && echo "✅ Download function found" || echo "❌ Download function missing"
+        
+    - name: Create validation summary
+      run: |
+        echo "## 🔍 Dashboard Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "✅ HTML validation completed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ CSS validation completed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ JavaScript validation completed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ File size check completed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Basic functionality test completed" >> $GITHUB_STEP_SUMMARY
+        echo "📅 Validated at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY

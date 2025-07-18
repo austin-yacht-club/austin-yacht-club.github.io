@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found | W017 Sensor</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: bold;
+            color: #667eea;
+            margin: 0;
+            line-height: 1;
+        }
+        
+        .error-message {
+            font-size: 2rem;
+            color: #2c3e50;
+            margin: 1rem 0;
+        }
+        
+        .error-description {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+            max-width: 600px;
+        }
+        
+        .home-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .home-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .sensor-animation {
+            font-size: 4rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🌡️ W017 Sensor Dashboard</h1>
+            <p class="subtitle">Sage Continuum - Environmental Monitoring Station</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="error-container">
+            <div class="sensor-animation">🔍</div>
+            <div class="error-code">404</div>
+            <div class="error-message">Page Not Found</div>
+            <div class="error-description">
+                The page you're looking for doesn't exist. The W017 sensor is still monitoring, 
+                but this particular page seems to have wandered off into the digital wilderness.
+            </div>
+            <a href="/" class="home-button">
+                <span>🏠</span>
+                Return to Dashboard
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Sage Continuum - W017 Sensor Dashboard</p>
+            <p>
+                <a href="https://github.com/waggle-sensor/waggle" target="_blank">Powered by Waggle</a> | 
+                <a href="https://github.com/features/actions" target="_blank">Automated with GitHub Actions</a>
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

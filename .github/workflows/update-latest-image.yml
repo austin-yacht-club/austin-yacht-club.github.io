@@ -1,0 +1,219 @@
+name: Update Latest W017 Image
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-image:
+    runs-on: ubuntu-latest
+    
+    # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install requests
+        
+    - name: Download latest image
+      env:
+        SAGE_USERNAME: ${{ secrets.SAGE_USERNAME }}
+        SAGE_ACCESS_TOKEN: ${{ secrets.SAGE_ACCESS_TOKEN }}
+      run: |
+        python3 << 'EOF'
+        import json
+        import requests
+        import os
+        from urllib.parse import urlparse
+        import sys
+        
+        def get_latest_image_url():
+            """Get the most recent image URL from the Sage API."""
+            api_url = "https://data.sagecontinuum.org/api/v1/query"
+            payload = {
+                "start": "-80h",
+                "filter": {
+                    "vsn": "W017",
+                    "task": "imagesampler-bottom"
+                }
+            }
+            
+            try:
+                response = requests.post(api_url, json=payload, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                results = data.get('results', [])
+                
+                if not results:
+                    print("No results found in API response")
+                    return None
+                    
+                # Get the most recent image (first result)
+                image_url = results[0].get('value', '')
+                
+                if not image_url or image_url == 'null':
+                    print("No valid image URL found in response")
+                    return None
+                    
+                return image_url
+                
+            except requests.exceptions.RequestException as e:
+                print(f"Error making API request: {e}")
+                return None
+            except json.JSONDecodeError as e:
+                print(f"Error parsing API response: {e}")
+                return None
+        
+        def download_image(url, output_path, username, access_token):
+            """Download image using various authentication methods."""
+            
+            # Authentication methods to try
+            auth_methods = [
+                {'headers': {'Authorization': f'Bearer {access_token}'}},
+                {'params': {'token': access_token}},
+                {'headers': {'X-API-Key': access_token}},
+                {'headers': {'Authorization': access_token}},
+                {'auth': (access_token, '')},
+                {'auth': (username, access_token)},
+                {'params': {'username': username, 'token': access_token}},
+                {'headers': {'X-Username': username, 'X-Token': access_token}},
+            ]
+            
+            for i, auth_method in enumerate(auth_methods, 1):
+                try:
+                    print(f"Trying authentication method {i}...")
+                    response = requests.get(url, timeout=30, **auth_method)
+                    response.raise_for_status()
+                    
+                    with open(output_path, 'wb') as f:
+                        f.write(response.content)
+                    
+                    print(f"Successfully downloaded image using method {i}")
+                    return True
+                    
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 401:
+                        print(f"Auth method {i} failed with 401")
+                        continue
+                    else:
+                        print(f"HTTP error with method {i}: {e}")
+                        continue
+                except requests.exceptions.RequestException as e:
+                    print(f"Request error with method {i}: {e}")
+                    continue
+            
+            return False
+        
+        def main():
+            # Get credentials from environment
+            username = os.getenv('SAGE_USERNAME')
+            access_token = os.getenv('SAGE_ACCESS_TOKEN')
+            
+            if not username or not access_token:
+                print("Error: SAGE_USERNAME and SAGE_ACCESS_TOKEN environment variables must be set")
+                sys.exit(1)
+            
+            print("Getting latest image URL...")
+            image_url = get_latest_image_url()
+            
+            if not image_url:
+                print("Failed to get image URL")
+                sys.exit(1)
+            
+            print(f"Found image URL: {image_url}")
+            
+            # Download the image as w017.png
+            output_path = "w017.png"
+            print(f"Downloading image to {output_path}...")
+            
+            if download_image(image_url, output_path, username, access_token):
+                print(f"Successfully saved image as {output_path}")
+                
+                # Check file size
+                file_size = os.path.getsize(output_path)
+                print(f"Downloaded file size: {file_size} bytes")
+                
+                if file_size == 0:
+                    print("Warning: Downloaded file is empty")
+                    sys.exit(1)
+                    
+            else:
+                print("Failed to download image")
+                sys.exit(1)
+        
+        if __name__ == "__main__":
+            main()
+        EOF
+        
+    - name: Check if image was updated
+      id: check_changes
+      run: |
+        if [ -f "w017.png" ]; then
+          # Check if there are any changes to commit
+          git add w017.png
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Image was updated"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "Image file not found"
+          exit 1
+        fi
+        
+    - name: Commit and push changes
+      if: steps.check_changes.outputs.has_changes == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add w017.png
+        git commit -m "Update latest W017 image - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        git push
+        
+    - name: Setup Pages
+      if: steps.check_changes.outputs.has_changes == 'true'
+      uses: actions/configure-pages@v3
+      
+    - name: Upload to GitHub Pages
+      if: steps.check_changes.outputs.has_changes == 'true'
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: .
+        
+    - name: Deploy to GitHub Pages
+      if: steps.check_changes.outputs.has_changes == 'true'
+      id: deployment
+      uses: actions/deploy-pages@v2
+        
+    - name: Create summary
+      run: |
+        echo "## W017 Image Update Summary" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.check_changes.outputs.has_changes }}" == "true" ]; then
+          echo "✅ Successfully updated w017.png with latest image" >> $GITHUB_STEP_SUMMARY
+          echo "📅 Updated at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 GitHub Pages will be updated automatically" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ℹ️ No changes - image is already up to date" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f "w017.png" ]; then
+          file_size=$(stat -c%s "w017.png" 2>/dev/null || stat -f%z "w017.png")
+          echo "📊 File size: ${file_size} bytes" >> $GITHUB_STEP_SUMMARY
+        fi
