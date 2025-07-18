@@ -68,12 +68,22 @@ jobs:
         # Method 1: Bearer token
         if [ "$SUCCESS" = false ]; then
             echo "Trying Bearer token authentication..."
-            if curl -s -H "Authorization: Bearer $SAGE_ACCESS_TOKEN" \
-                   -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
-                mv "w017.png.tmp" "w017.png"
-                SUCCESS=true
-                echo "✅ Downloaded with Bearer token"
+            HTTP_CODE=$(curl -s -H "Authorization: Bearer $SAGE_ACCESS_TOKEN" \
+                   -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
+                # Check if the downloaded file is actually an image, not an error message
+                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
+                    mv "w017.png.tmp" "w017.png"
+                    SUCCESS=true
+                    echo "✅ Downloaded with Bearer token (HTTP $HTTP_CODE)"
+                else
+                    echo "❌ Bearer token failed - downloaded file is not an image"
+                    echo "Content: $(head -c 200 w017.png.tmp)"
+                    rm -f "w017.png.tmp"
+                fi
             else
+                echo "❌ Bearer token failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
@@ -81,12 +91,21 @@ jobs:
         # Method 2: Basic auth with token as username
         if [ "$SUCCESS" = false ]; then
             echo "Trying Basic auth with token..."
-            if curl -s -u "$SAGE_ACCESS_TOKEN:" \
-                   -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
-                mv "w017.png.tmp" "w017.png"
-                SUCCESS=true
-                echo "✅ Downloaded with Basic auth (token)"
+            HTTP_CODE=$(curl -s -u "$SAGE_ACCESS_TOKEN:" \
+                   -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
+                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
+                    mv "w017.png.tmp" "w017.png"
+                    SUCCESS=true
+                    echo "✅ Downloaded with Basic auth (token) (HTTP $HTTP_CODE)"
+                else
+                    echo "❌ Basic auth (token) failed - downloaded file is not an image"
+                    echo "Content: $(head -c 200 w017.png.tmp)"
+                    rm -f "w017.png.tmp"
+                fi
             else
+                echo "❌ Basic auth (token) failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
@@ -94,12 +113,21 @@ jobs:
         # Method 3: Basic auth with username and token
         if [ "$SUCCESS" = false ]; then
             echo "Trying Basic auth with username and token..."
-            if curl -s -u "$SAGE_USERNAME:$SAGE_ACCESS_TOKEN" \
-                   -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
-                mv "w017.png.tmp" "w017.png"
-                SUCCESS=true
-                echo "✅ Downloaded with Basic auth (username:token)"
+            HTTP_CODE=$(curl -s -u "$SAGE_USERNAME:$SAGE_ACCESS_TOKEN" \
+                   -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
+                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
+                    mv "w017.png.tmp" "w017.png"
+                    SUCCESS=true
+                    echo "✅ Downloaded with Basic auth (username:token) (HTTP $HTTP_CODE)"
+                else
+                    echo "❌ Basic auth (username:token) failed - downloaded file is not an image"
+                    echo "Content: $(head -c 200 w017.png.tmp)"
+                    rm -f "w017.png.tmp"
+                fi
             else
+                echo "❌ Basic auth (username:token) failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
@@ -107,11 +135,20 @@ jobs:
         # Method 4: Token as query parameter
         if [ "$SUCCESS" = false ]; then
             echo "Trying token as query parameter..."
-            if curl -s -o "w017.png.tmp" "${IMAGE_URL}?token=$SAGE_ACCESS_TOKEN" && [ -s "w017.png.tmp" ]; then
-                mv "w017.png.tmp" "w017.png"
-                SUCCESS=true
-                echo "✅ Downloaded with token parameter"
+            HTTP_CODE=$(curl -s -o "w017.png.tmp" -w "%{http_code}" "${IMAGE_URL}?token=$SAGE_ACCESS_TOKEN")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
+                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
+                    mv "w017.png.tmp" "w017.png"
+                    SUCCESS=true
+                    echo "✅ Downloaded with token parameter (HTTP $HTTP_CODE)"
+                else
+                    echo "❌ Token parameter failed - downloaded file is not an image"
+                    echo "Content: $(head -c 200 w017.png.tmp)"
+                    rm -f "w017.png.tmp"
+                fi
             else
+                echo "❌ Token parameter failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
@@ -119,17 +156,27 @@ jobs:
         # Method 5: No authentication (public access)
         if [ "$SUCCESS" = false ]; then
             echo "Trying without authentication..."
-            if curl -s -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
-                mv "w017.png.tmp" "w017.png"
-                SUCCESS=true
-                echo "✅ Downloaded without authentication"
+            HTTP_CODE=$(curl -s -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
+                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
+                    mv "w017.png.tmp" "w017.png"
+                    SUCCESS=true
+                    echo "✅ Downloaded without authentication (HTTP $HTTP_CODE)"
+                else
+                    echo "❌ No authentication failed - downloaded file is not an image"
+                    echo "Content: $(head -c 200 w017.png.tmp)"
+                    rm -f "w017.png.tmp"
+                fi
             else
+                echo "❌ No authentication failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
         
         if [ "$SUCCESS" = false ]; then
             echo "❌ Failed to download image with any authentication method"
+            echo "All authentication methods failed. Check your credentials and API access."
             exit 1
         fi
         
@@ -145,10 +192,7 @@ jobs:
             exit 1
         fi
         
-        echo "✅ Successfully downloaded image"
-        echo "📊 File size: $FILE_SIZE bytes"
-        
-        # Check if it's a valid image file
+        # Double-check that it's actually an image file
         if command -v file >/dev/null 2>&1; then
             FILE_TYPE=$(file "w017.png")
             echo "📄 File type: $FILE_TYPE"
@@ -156,9 +200,14 @@ jobs:
             if echo "$FILE_TYPE" | grep -q -i "image\|png\|jpeg"; then
                 echo "✅ Valid image file confirmed"
             else
-                echo "⚠️  Warning: File may not be a valid image"
+                echo "❌ Downloaded file is not a valid image"
+                echo "File content (first 200 chars): $(head -c 200 w017.png)"
+                exit 1
             fi
         fi
+        
+        echo "✅ Successfully downloaded image"
+        echo "📊 File size: $FILE_SIZE bytes"
         
     - name: Check if image was updated
       id: check_changes
