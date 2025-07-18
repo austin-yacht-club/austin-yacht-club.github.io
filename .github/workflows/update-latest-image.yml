@@ -19,28 +19,25 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
-        
-    - name: Install dependencies
+    
+    - name: Install jq
       run: |
-        pip install requests
+        if ! command -v jq &> /dev/null; then
+          echo "Installing jq..."
+          sudo apt-get update
+          sudo apt-get install -y jq
+        else
+          echo "jq is already installed"
+        fi
         
     - name: Download latest image
       env:
         SAGE_USERNAME: ${{ secrets.SAGE_USERNAME }}
         SAGE_ACCESS_TOKEN: ${{ secrets.SAGE_ACCESS_TOKEN }}
       run: |
-        python3 << 'EOF'
-        import json
-        import requests
-        import os
-        from urllib.parse import urlparse
-        import sys
+        echo "Fetching latest image metadata..."
         
+<<<<<<< HEAD
         def get_latest_image_url():
             """Get the most recent image URL from the Sage API."""
             api_url = "https://data.sagecontinuum.org/api/v1/query"
@@ -78,87 +75,125 @@ jobs:
             except json.JSONDecodeError as e:
                 print(f"Error parsing API response: {e}")
                 return None
+=======
+        # Get the latest image metadata using curl
+        RESPONSE=$(curl -s "https://data.sagecontinuum.org/api/v1/query" \
+          -H "Content-Type: application/json" \
+          -d '{"start":"-1h","filter":{"vsn":"W017","task":"imagesampler-bottom"}}')
+>>>>>>> a17d22e (Fix workflow: Use jq for JSON parsing, correct API response structure)
         
-        def download_image(url, output_path, username, access_token):
-            """Download image using various authentication methods."""
-            
-            # Authentication methods to try
-            auth_methods = [
-                {'headers': {'Authorization': f'Bearer {access_token}'}},
-                {'params': {'token': access_token}},
-                {'headers': {'X-API-Key': access_token}},
-                {'headers': {'Authorization': access_token}},
-                {'auth': (access_token, '')},
-                {'auth': (username, access_token)},
-                {'params': {'username': username, 'token': access_token}},
-                {'headers': {'X-Username': username, 'X-Token': access_token}},
-            ]
-            
-            for i, auth_method in enumerate(auth_methods, 1):
-                try:
-                    print(f"Trying authentication method {i}...")
-                    response = requests.get(url, timeout=30, **auth_method)
-                    response.raise_for_status()
-                    
-                    with open(output_path, 'wb') as f:
-                        f.write(response.content)
-                    
-                    print(f"Successfully downloaded image using method {i}")
-                    return True
-                    
-                except requests.exceptions.HTTPError as e:
-                    if e.response.status_code == 401:
-                        print(f"Auth method {i} failed with 401")
-                        continue
-                    else:
-                        print(f"HTTP error with method {i}: {e}")
-                        continue
-                except requests.exceptions.RequestException as e:
-                    print(f"Request error with method {i}: {e}")
-                    continue
-            
-            return False
+        echo "API Response: $RESPONSE"
         
-        def main():
-            # Get credentials from environment
-            username = os.getenv('SAGE_USERNAME')
-            access_token = os.getenv('SAGE_ACCESS_TOKEN')
-            
-            if not username or not access_token:
-                print("Error: SAGE_USERNAME and SAGE_ACCESS_TOKEN environment variables must be set")
-                sys.exit(1)
-            
-            print("Getting latest image URL...")
-            image_url = get_latest_image_url()
-            
-            if not image_url:
-                print("Failed to get image URL")
-                sys.exit(1)
-            
-            print(f"Found image URL: {image_url}")
-            
-            # Download the image as w017.png
-            output_path = "w017.png"
-            print(f"Downloading image to {output_path}...")
-            
-            if download_image(image_url, output_path, username, access_token):
-                print(f"Successfully saved image as {output_path}")
-                
-                # Check file size
-                file_size = os.path.getsize(output_path)
-                print(f"Downloaded file size: {file_size} bytes")
-                
-                if file_size == 0:
-                    print("Warning: Downloaded file is empty")
-                    sys.exit(1)
-                    
-            else:
-                print("Failed to download image")
-                sys.exit(1)
+        # Extract image URL from response using jq
+        IMAGE_URL=$(echo "$RESPONSE" | jq -r '.value // empty')
         
-        if __name__ == "__main__":
-            main()
-        EOF
+        if [ -z "$IMAGE_URL" ] || [ "$IMAGE_URL" = "null" ]; then
+            echo "ERROR: No valid image URL found in response"
+            exit 1
+        fi
+        
+        echo "Found image URL: $IMAGE_URL"
+        
+        # Download the image with authentication
+        echo "Downloading image..."
+        
+        # Try multiple authentication methods
+        SUCCESS=false
+        
+        # Method 1: Bearer token
+        if [ "$SUCCESS" = false ]; then
+            echo "Trying Bearer token authentication..."
+            if curl -s -H "Authorization: Bearer $SAGE_ACCESS_TOKEN" \
+                   -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
+                mv "w017.png.tmp" "w017.png"
+                SUCCESS=true
+                echo "✅ Downloaded with Bearer token"
+            else
+                rm -f "w017.png.tmp"
+            fi
+        fi
+        
+        # Method 2: Basic auth with token as username
+        if [ "$SUCCESS" = false ]; then
+            echo "Trying Basic auth with token..."
+            if curl -s -u "$SAGE_ACCESS_TOKEN:" \
+                   -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
+                mv "w017.png.tmp" "w017.png"
+                SUCCESS=true
+                echo "✅ Downloaded with Basic auth (token)"
+            else
+                rm -f "w017.png.tmp"
+            fi
+        fi
+        
+        # Method 3: Basic auth with username and token
+        if [ "$SUCCESS" = false ]; then
+            echo "Trying Basic auth with username and token..."
+            if curl -s -u "$SAGE_USERNAME:$SAGE_ACCESS_TOKEN" \
+                   -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
+                mv "w017.png.tmp" "w017.png"
+                SUCCESS=true
+                echo "✅ Downloaded with Basic auth (username:token)"
+            else
+                rm -f "w017.png.tmp"
+            fi
+        fi
+        
+        # Method 4: Token as query parameter
+        if [ "$SUCCESS" = false ]; then
+            echo "Trying token as query parameter..."
+            if curl -s -o "w017.png.tmp" "${IMAGE_URL}?token=$SAGE_ACCESS_TOKEN" && [ -s "w017.png.tmp" ]; then
+                mv "w017.png.tmp" "w017.png"
+                SUCCESS=true
+                echo "✅ Downloaded with token parameter"
+            else
+                rm -f "w017.png.tmp"
+            fi
+        fi
+        
+        # Method 5: No authentication (public access)
+        if [ "$SUCCESS" = false ]; then
+            echo "Trying without authentication..."
+            if curl -s -o "w017.png.tmp" "$IMAGE_URL" && [ -s "w017.png.tmp" ]; then
+                mv "w017.png.tmp" "w017.png"
+                SUCCESS=true
+                echo "✅ Downloaded without authentication"
+            else
+                rm -f "w017.png.tmp"
+            fi
+        fi
+        
+        if [ "$SUCCESS" = false ]; then
+            echo "❌ Failed to download image with any authentication method"
+            exit 1
+        fi
+        
+        # Verify the downloaded file
+        if [ ! -f "w017.png" ]; then
+            echo "❌ Image file not found after download"
+            exit 1
+        fi
+        
+        FILE_SIZE=$(stat -c%s "w017.png" 2>/dev/null || stat -f%z "w017.png")
+        if [ "$FILE_SIZE" -eq 0 ]; then
+            echo "❌ Downloaded file is empty"
+            exit 1
+        fi
+        
+        echo "✅ Successfully downloaded image"
+        echo "📊 File size: $FILE_SIZE bytes"
+        
+        # Check if it's a valid image file
+        if command -v file >/dev/null 2>&1; then
+            FILE_TYPE=$(file "w017.png")
+            echo "📄 File type: $FILE_TYPE"
+            
+            if echo "$FILE_TYPE" | grep -q -i "image\|png\|jpeg"; then
+                echo "✅ Valid image file confirmed"
+            else
+                echo "⚠️  Warning: File may not be a valid image"
+            fi
+        fi
         
     - name: Check if image was updated
       id: check_changes
