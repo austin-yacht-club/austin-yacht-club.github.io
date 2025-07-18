@@ -45,7 +45,7 @@ jobs:
             """Get the most recent image URL from the Sage API."""
             api_url = "https://data.sagecontinuum.org/api/v1/query"
             payload = {
-                "start": "-80h",
+                "start": "-1h",
                 "filter": {
                     "vsn": "W017",
                     "task": "imagesampler-bottom"
