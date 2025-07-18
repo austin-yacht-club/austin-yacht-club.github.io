@@ -59,60 +59,88 @@ jobs:
         
         echo "Found image URL: $IMAGE_URL"
         
+        # Extract the file path from the storage URL
+        # Convert from: https://storage.sagecontinuum.org/api/v1/data/PATH
+        # To: https://nrdstor.nationalresearchplatform.org:8443/sage/node-data/PATH
+        FILE_PATH=$(echo "$IMAGE_URL" | sed 's|https://storage.sagecontinuum.org/api/v1/data/||')
+        NRP_URL="https://nrdstor.nationalresearchplatform.org:8443/sage/node-data/$FILE_PATH"
+        
+        echo "Transformed URL: $NRP_URL"
+        
         # Download the image with authentication
         echo "Downloading image..."
         
         # Try multiple authentication methods
         SUCCESS=false
         
-        # Method 1: Bearer token
+        # Method 1: Try with the original storage URL and Bearer token
         if [ "$SUCCESS" = false ]; then
-            echo "Trying Bearer token authentication..."
+            echo "Trying original URL with Bearer token..."
             HTTP_CODE=$(curl -s -H "Authorization: Bearer $SAGE_ACCESS_TOKEN" \
                    -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
             
             if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
-                # Check if the downloaded file is actually an image, not an error message
                 if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
                     mv "w017.png.tmp" "w017.png"
                     SUCCESS=true
-                    echo "✅ Downloaded with Bearer token (HTTP $HTTP_CODE)"
+                    echo "✅ Downloaded with Bearer token from original URL (HTTP $HTTP_CODE)"
                 else
-                    echo "❌ Bearer token failed - downloaded file is not an image"
+                    echo "❌ Bearer token (original URL) failed - downloaded file is not an image"
                     echo "Content: $(head -c 200 w017.png.tmp)"
                     rm -f "w017.png.tmp"
                 fi
             else
-                echo "❌ Bearer token failed (HTTP $HTTP_CODE)"
+                echo "❌ Bearer token (original URL) failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
         
-        # Method 2: Basic auth with token as username
+        # Method 2: Try with the transformed NRP URL and Bearer token
         if [ "$SUCCESS" = false ]; then
-            echo "Trying Basic auth with token..."
-            HTTP_CODE=$(curl -s -u "$SAGE_ACCESS_TOKEN:" \
-                   -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
+            echo "Trying NRP URL with Bearer token..."
+            HTTP_CODE=$(curl -s -H "Authorization: Bearer $SAGE_ACCESS_TOKEN" \
+                   -o "w017.png.tmp" -w "%{http_code}" "$NRP_URL")
             
             if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
                 if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
                     mv "w017.png.tmp" "w017.png"
                     SUCCESS=true
-                    echo "✅ Downloaded with Basic auth (token) (HTTP $HTTP_CODE)"
+                    echo "✅ Downloaded with Bearer token from NRP URL (HTTP $HTTP_CODE)"
                 else
-                    echo "❌ Basic auth (token) failed - downloaded file is not an image"
+                    echo "❌ Bearer token (NRP URL) failed - downloaded file is not an image"
                     echo "Content: $(head -c 200 w017.png.tmp)"
                     rm -f "w017.png.tmp"
                 fi
             else
-                echo "❌ Basic auth (token) failed (HTTP $HTTP_CODE)"
+                echo "❌ Bearer token (NRP URL) failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
         
-        # Method 3: Basic auth with username and token
+        # Method 3: Try with NRP URL and authz parameter (like your working example)
         if [ "$SUCCESS" = false ]; then
-            echo "Trying Basic auth with username and token..."
+            echo "Trying NRP URL with authz parameter..."
+            HTTP_CODE=$(curl -s -o "w017.png.tmp" -w "%{http_code}" "${NRP_URL}?authz=$SAGE_ACCESS_TOKEN")
+            
+            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
+                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
+                    mv "w017.png.tmp" "w017.png"
+                    SUCCESS=true
+                    echo "✅ Downloaded with authz parameter from NRP URL (HTTP $HTTP_CODE)"
+                else
+                    echo "❌ Authz parameter (NRP URL) failed - downloaded file is not an image"
+                    echo "Content: $(head -c 200 w017.png.tmp)"
+                    rm -f "w017.png.tmp"
+                fi
+            else
+                echo "❌ Authz parameter (NRP URL) failed (HTTP $HTTP_CODE)"
+                rm -f "w017.png.tmp"
+            fi
+        fi
+        
+        # Method 4: Basic auth with username and token on original URL
+        if [ "$SUCCESS" = false ]; then
+            echo "Trying Basic auth with username and token on original URL..."
             HTTP_CODE=$(curl -s -u "$SAGE_USERNAME:$SAGE_ACCESS_TOKEN" \
                    -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
             
@@ -120,40 +148,19 @@ jobs:
                 if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
                     mv "w017.png.tmp" "w017.png"
                     SUCCESS=true
-                    echo "✅ Downloaded with Basic auth (username:token) (HTTP $HTTP_CODE)"
+                    echo "✅ Downloaded with Basic auth from original URL (HTTP $HTTP_CODE)"
                 else
-                    echo "❌ Basic auth (username:token) failed - downloaded file is not an image"
+                    echo "❌ Basic auth (original URL) failed - downloaded file is not an image"
                     echo "Content: $(head -c 200 w017.png.tmp)"
                     rm -f "w017.png.tmp"
                 fi
             else
-                echo "❌ Basic auth (username:token) failed (HTTP $HTTP_CODE)"
+                echo "❌ Basic auth (original URL) failed (HTTP $HTTP_CODE)"
                 rm -f "w017.png.tmp"
             fi
         fi
         
-        # Method 4: Token as query parameter
-        if [ "$SUCCESS" = false ]; then
-            echo "Trying token as query parameter..."
-            HTTP_CODE=$(curl -s -o "w017.png.tmp" -w "%{http_code}" "${IMAGE_URL}?token=$SAGE_ACCESS_TOKEN")
-            
-            if [ "$HTTP_CODE" = "200" ] && [ -s "w017.png.tmp" ]; then
-                if file "w017.png.tmp" | grep -q -i "image\|png\|jpeg"; then
-                    mv "w017.png.tmp" "w017.png"
-                    SUCCESS=true
-                    echo "✅ Downloaded with token parameter (HTTP $HTTP_CODE)"
-                else
-                    echo "❌ Token parameter failed - downloaded file is not an image"
-                    echo "Content: $(head -c 200 w017.png.tmp)"
-                    rm -f "w017.png.tmp"
-                fi
-            else
-                echo "❌ Token parameter failed (HTTP $HTTP_CODE)"
-                rm -f "w017.png.tmp"
-            fi
-        fi
-        
-        # Method 5: No authentication (public access)
+        # Method 5: Try without authentication (public access)
         if [ "$SUCCESS" = false ]; then
             echo "Trying without authentication..."
             HTTP_CODE=$(curl -s -o "w017.png.tmp" -w "%{http_code}" "$IMAGE_URL")
